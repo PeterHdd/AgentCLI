@@ -1,0 +1,91 @@
+{
+  "name": "agentcli",
+  "productName": "AgentCLI",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Desktop terminal workbench for resumable agent coding sessions.",
+  "license": "MIT",
+  "author": "AgentCLI",
+  "main": "src/main.js",
+  "build": {
+    "appId": "app.agentcli.desktop",
+    "artifactName": "${productName}-${version}-${arch}.${ext}",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "src/**/*",
+      "assets/icon.png",
+      "assets/icon.icns",
+      "native/**/*",
+      "package.json",
+      "!test/**/*",
+      "!scripts/**/*",
+      "!dist/**/*",
+      "!release/**/*",
+      "!.github/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "icon": "assets/icon.icns",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ]
+    },
+    "dmg": {
+      "title": "AgentCLI ${version}",
+      "iconSize": 96,
+      "contents": [
+        {
+          "x": 140,
+          "y": 170,
+          "type": "file"
+        },
+        {
+          "x": 380,
+          "y": 170,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ],
+      "window": {
+        "width": 520,
+        "height": 340
+      }
+    }
+  },
+  "scripts": {
+    "start": "electron .",
+    "start:branded": "node scripts/start-branded.js",
+    "app:prepare": "node scripts/prepare-branded-app.js",
+    "icon:generate": "node scripts/generate-icon.js && mkdir -p assets/icon.iconset && sips -z 16 16 assets/icon.png --out assets/icon.iconset/icon_16x16.png >/dev/null && sips -z 32 32 assets/icon.png --out assets/icon.iconset/icon_16x16@2x.png >/dev/null && sips -z 32 32 assets/icon.png --out assets/icon.iconset/icon_32x32.png >/dev/null && sips -z 64 64 assets/icon.png --out assets/icon.iconset/icon_32x32@2x.png >/dev/null && sips -z 128 128 assets/icon.png --out assets/icon.iconset/icon_128x128.png >/dev/null && sips -z 256 256 assets/icon.png --out assets/icon.iconset/icon_128x128@2x.png >/dev/null && sips -z 256 256 assets/icon.png --out assets/icon.iconset/icon_256x256.png >/dev/null && sips -z 512 512 assets/icon.png --out assets/icon.iconset/icon_256x256@2x.png >/dev/null && sips -z 512 512 assets/icon.png --out assets/icon.iconset/icon_512x512.png >/dev/null && sips -z 1024 1024 assets/icon.png --out assets/icon.iconset/icon_512x512@2x.png >/dev/null && node scripts/build-icns.js",
+    "check": "node --check src/main.js && node --check src/preload.js && node --check src/renderer/renderer.js",
+    "security:check": "node scripts/security-check.js",
+    "test": "node --test",
+    "ci": "npm run check && npm run security:check && npm test",
+    "dist:dir": "npm run dist:dir:arm64",
+    "dist:dir:arm64": "npm run icon:generate && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac --dir --arm64",
+    "dist:dir:x64": "npm run icon:generate && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac --dir --x64",
+    "dist:dmg": "npm run dist:dmg:arm64",
+    "dist:dmg:arm64": "npm run icon:generate && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg --arm64",
+    "dist:dmg:x64": "npm run icon:generate && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg --x64",
+    "dist:dmg:all": "npm run icon:generate && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg --arm64 --x64"
+  },
+  "dependencies": {
+    "@homebridge/node-pty-prebuilt-multiarch": "^0.13.1",
+    "@xterm/addon-fit": "^0.10.0",
+    "@xterm/xterm": "^5.5.0"
+  },
+  "devDependencies": {
+    "electron": "^42.3.0",
+    "electron-builder": "^26.8.1"
+  }
+}

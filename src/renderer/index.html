@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' file: data:; font-src 'self' file: data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none';"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AgentCLI</title>
+    <link rel="stylesheet" href="../../node_modules/@xterm/xterm/css/xterm.css" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div id="app" class="app">
+      <aside id="sessions" class="sessions" aria-label="Sessions">
+        <div class="sessions-head">
+          <span>sessions</span>
+          <button id="close-sessions" title="Close sessions">×</button>
+        </div>
+        <div class="sessions-search">
+          <input id="session-search" type="search" autocomplete="off" spellcheck="false" placeholder="filter sessions" />
+        </div>
+        <div id="session-list" class="session-list"></div>
+        <div id="session-preview" class="session-preview"></div>
+      </aside>
+      <main class="terminal-wrap">
+        <div class="tabbar">
+          <div id="tabs" class="tabs" aria-label="Terminal tabs"></div>
+          <button id="scratchpad-toggle" class="scratchpad-toggle" type="button" title="Scratchpad">✎</button>
+        </div>
+        <section id="scratchpad" class="scratchpad collapsed" aria-label="Prompt scratchpad">
+          <div class="scratchpad-head">
+            <span>scratchpad</span>
+            <div>
+              <button id="scratchpad-send" type="button">send</button>
+              <button id="scratchpad-pair" type="button">pair</button>
+              <button id="scratchpad-close" type="button">×</button>
+            </div>
+          </div>
+          <textarea id="scratchpad-input" spellcheck="true" placeholder="Draft prompt here. Voice dictation inserts here when open."></textarea>
+        </section>
+        <div id="terminal" class="terminal-stack"></div>
+        <textarea id="keyboard-capture" aria-label="Keyboard capture" autofocus></textarea>
+      </main>
+    </div>
+    <div id="palette" class="palette" aria-hidden="true">
+      <div class="palette-panel">
+        <input id="palette-input" type="search" autocomplete="off" spellcheck="false" placeholder="command" />
+        <div id="palette-list" class="palette-list"></div>
+      </div>
+    </div>
+    <div id="theme-editor" class="theme-editor" aria-hidden="true">
+      <div class="theme-panel">
+        <div class="theme-head">
+          <span>Colors</span>
+          <button id="theme-close" type="button">×</button>
+        </div>
+        <div class="theme-mode">
+          <span class="theme-wheel"></span>
+          <button class="theme-mode-button" type="button">HSB Sliders</button>
+        </div>
+        <div class="theme-targets" id="theme-targets"></div>
+        <div class="theme-controls">
+          <label>
+            <span>Hue</span>
+            <input id="theme-hue" type="range" min="0" max="360" step="1" />
+            <output id="theme-hue-value"></output>
+          </label>
+          <label>
+            <span>Saturation</span>
+            <input id="theme-saturation" type="range" min="0" max="100" step="1" />
+            <output id="theme-saturation-value"></output>
+          </label>
+          <label>
+            <span>Brightness</span>
+            <input id="theme-brightness" type="range" min="0" max="100" step="1" />
+            <output id="theme-brightness-value"></output>
+          </label>
+          <label>
+            <span>Opacity</span>
+            <input id="theme-opacity" type="range" min="0" max="100" step="1" value="100" />
+            <output id="theme-opacity-value">100%</output>
+          </label>
+        </div>
+        <div class="theme-actions">
+          <button id="theme-reset" type="button">Restore Profile Color</button>
+          <button id="theme-done" type="button">Done</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="../../node_modules/@xterm/xterm/lib/xterm.js"></script>
+    <script src="../../node_modules/@xterm/addon-fit/lib/addon-fit.js"></script>
+    <script src="./renderer.js"></script>
+  </body>
+</html>
