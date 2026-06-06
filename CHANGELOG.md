@@ -2,6 +2,19 @@
 
 All notable changes to AgentCLI will be documented in this file.
 
+## [0.0.2](https://github.com/PeterHdd/AgentCLI/compare/AgentCLI-v0.0.1...AgentCLI-v0.0.2) (2026-06-06)
+
+
+### Features
+
+* initial AgentCLI alpha ([a0b2dbc](https://github.com/PeterHdd/AgentCLI/commit/a0b2dbcc1b8b7c4c4c6a6ff239d645e04875dc9e))
+
+
+### Bug Fixes
+
+* disable electron-builder auto publish ([3bd936e](https://github.com/PeterHdd/AgentCLI/commit/3bd936e3ebfda494dd8afa803eee6971c002f46e))
+* keep pre-1.0 feature releases patch scoped ([d95d731](https://github.com/PeterHdd/AgentCLI/commit/d95d7315c348bceaff3c43dfe4f4cff788574958))
+
 ## 0.0.1 - 2026-05-31
 
 ### Added
