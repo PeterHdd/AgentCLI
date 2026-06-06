@@ -72,12 +72,12 @@
     "test": "node --test",
     "ci": "npm run check && npm run security:check && npm test",
     "dist:dir": "npm run dist:dir:arm64",
-    "dist:dir:arm64": "npm run icon:generate && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac --dir --arm64",
-    "dist:dir:x64": "npm run icon:generate && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac --dir --x64",
+    "dist:dir:arm64": "npm run icon:generate && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac --dir --arm64 --publish never",
+    "dist:dir:x64": "npm run icon:generate && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac --dir --x64 --publish never",
     "dist:dmg": "npm run dist:dmg:arm64",
-    "dist:dmg:arm64": "npm run icon:generate && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg --arm64",
-    "dist:dmg:x64": "npm run icon:generate && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg --x64",
-    "dist:dmg:all": "npm run icon:generate && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg --arm64 --x64"
+    "dist:dmg:arm64": "npm run icon:generate && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg --arm64 --publish never",
+    "dist:dmg:x64": "npm run icon:generate && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg --x64 --publish never",
+    "dist:dmg:all": "npm run icon:generate && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg --arm64 --x64 --publish never"
   },
   "dependencies": {
     "@homebridge/node-pty-prebuilt-multiarch": "^0.13.1",
