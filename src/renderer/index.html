@@ -27,7 +27,16 @@
       <main class="terminal-wrap">
         <div class="tabbar">
           <div id="tabs" class="tabs" aria-label="Terminal tabs"></div>
-          <button id="scratchpad-toggle" class="scratchpad-toggle" type="button" title="Scratchpad">✎</button>
+          <div class="tabbar-actions">
+            <button id="new-tab" class="tabbar-button" type="button" title="New tab (⌘T)" aria-label="New tab">+</button>
+            <button id="sessions-toggle" class="tabbar-button" type="button" title="Toggle sessions (⌘B)" aria-label="Toggle sessions" aria-pressed="false">☰</button>
+            <button id="palette-open" class="tabbar-button" type="button" title="Command palette (⌘K)" aria-label="Command palette">⌘K</button>
+            <button id="scratchpad-toggle" class="tabbar-button scratchpad-toggle" type="button" title="Scratchpad (⌘E)" aria-label="Scratchpad" aria-pressed="false">✎</button>
+          </div>
+        </div>
+        <div id="hint-bar" class="hint-bar">
+          <span>Tips: <b>⌘K</b> commands · <b>⌘B</b> sessions · <b>⌘T</b> new tab · <b>⌘E</b> scratchpad</span>
+          <button id="hint-dismiss" type="button" title="Dismiss tips" aria-label="Dismiss tips">×</button>
         </div>
         <section id="scratchpad" class="scratchpad collapsed" aria-label="Prompt scratchpad">
           <div class="scratchpad-head">
@@ -45,9 +54,19 @@
       </main>
     </div>
     <div id="palette" class="palette" aria-hidden="true">
-      <div class="palette-panel">
-        <input id="palette-input" type="search" autocomplete="off" spellcheck="false" placeholder="command" />
-        <div id="palette-list" class="palette-list"></div>
+      <div class="palette-panel" role="dialog" aria-modal="true" aria-label="Command palette">
+        <input id="palette-input" type="search" autocomplete="off" spellcheck="false" placeholder="command" aria-label="Filter commands" />
+        <div id="palette-list" class="palette-list" role="listbox"></div>
+      </div>
+    </div>
+    <div id="dialog" class="dialog" aria-hidden="true">
+      <div class="dialog-panel" role="dialog" aria-modal="true" aria-labelledby="dialog-title">
+        <div class="dialog-head"><span id="dialog-title"></span></div>
+        <div id="dialog-body" class="dialog-body"></div>
+        <div class="dialog-actions">
+          <button id="dialog-cancel" class="dialog-button" type="button">Cancel</button>
+          <button id="dialog-confirm" class="dialog-button primary" type="button">OK</button>
+        </div>
       </div>
     </div>
     <div id="theme-editor" class="theme-editor" aria-hidden="true">
@@ -55,10 +74,6 @@
         <div class="theme-head">
           <span>Colors</span>
           <button id="theme-close" type="button">×</button>
-        </div>
-        <div class="theme-mode">
-          <span class="theme-wheel"></span>
-          <button class="theme-mode-button" type="button">HSB Sliders</button>
         </div>
         <div class="theme-targets" id="theme-targets"></div>
         <div class="theme-controls">
@@ -77,11 +92,6 @@
             <input id="theme-brightness" type="range" min="0" max="100" step="1" />
             <output id="theme-brightness-value"></output>
           </label>
-          <label>
-            <span>Opacity</span>
-            <input id="theme-opacity" type="range" min="0" max="100" step="1" value="100" />
-            <output id="theme-opacity-value">100%</output>
-          </label>
         </div>
         <div class="theme-actions">
           <button id="theme-reset" type="button">Restore Profile Color</button>
@@ -92,6 +102,9 @@
 
     <script src="../../node_modules/@xterm/xterm/lib/xterm.js"></script>
     <script src="../../node_modules/@xterm/addon-fit/lib/addon-fit.js"></script>
+    <script src="./lib/colors.js"></script>
+    <script src="./lib/format.js"></script>
+    <script src="./lib/agent.js"></script>
     <script src="./renderer.js"></script>
   </body>
 </html>
