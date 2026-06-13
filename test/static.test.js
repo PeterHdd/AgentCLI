@@ -10,7 +10,7 @@ test("package is branded as agentcli", () => {
   const pkg = JSON.parse(read("package.json"));
   assert.equal(pkg.name, "agentcli");
   assert.equal(pkg.productName, "AgentCLI");
-  assert.equal(pkg.version, "0.0.1");
+  assert.match(pkg.version, /^\d+\.\d+\.\d+$/, "version should be semver (release-please bumps it)");
   assert.equal(pkg.license, "MIT");
   assert.equal(pkg.build.mac.icon, "assets/icon.icns");
   assert.equal(pkg.build.mac.target[0].target, "dmg");
@@ -94,6 +94,7 @@ test("release files document alpha distribution", () => {
   const releasePleaseWorkflow = read(".github/workflows/release-please.yml");
   const releasePleaseConfig = JSON.parse(read("release-please-config.json"));
   const releasePleaseManifest = JSON.parse(read(".release-please-manifest.json"));
+  const pkg = JSON.parse(read("package.json"));
   assert.match(changelog, /## 0\.0\.1 - 2026-05-31/);
   assert.match(changelog, /DMGs are unsigned and not notarized/);
   assert.match(gitignore, /node_modules\//);
@@ -104,5 +105,6 @@ test("release files document alpha distribution", () => {
   assert.match(releasePleaseWorkflow, /googleapis\/release-please-action@v4/);
   assert.equal(releasePleaseConfig["release-type"], "node");
   assert.equal(releasePleaseConfig.packages["."]["changelog-path"], "CHANGELOG.md");
-  assert.equal(releasePleaseManifest["."], "0.0.1");
+  assert.match(releasePleaseManifest["."], /^\d+\.\d+\.\d+$/, "manifest version should be semver");
+  assert.equal(releasePleaseManifest["."], pkg.version, "manifest must stay in sync with package.json version");
 });
