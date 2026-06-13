@@ -2,6 +2,14 @@
 
 All notable changes to AgentCLI will be documented in this file.
 
+## [0.0.3](https://github.com/PeterHdd/AgentCLI/compare/AgentCLI-v0.0.2...AgentCLI-v0.0.3) (2026-06-13)
+
+
+### Bug Fixes
+
+* stop pinning version in static tests so releases don't break CI ([2a4de3a](https://github.com/PeterHdd/AgentCLI/commit/2a4de3a5cf8d38e7ce21269b64601d52fcbcafba))
+* stop pinning version in static tests so releases don't break CI ([e79df52](https://github.com/PeterHdd/AgentCLI/commit/e79df526c117a398bb3ed2c1dcf6cf7357456b98))
+
 ## [0.0.2](https://github.com/PeterHdd/AgentCLI/compare/AgentCLI-v0.0.1...AgentCLI-v0.0.2) (2026-06-13)
 
 
