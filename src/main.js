@@ -19,6 +19,17 @@ let mainWindow;
 let storePath;
 const terminals = new Map();
 
+// Listing Codex threads spawns a fresh `codex app-server` per call, so cache the
+// result briefly to avoid re-spawning on every sidebar open. Callers that need
+// up-to-the-moment data (e.g. capturing a freshly started session id) pass
+// { bypassCache: true }, which also refreshes the cache.
+const CODEX_THREADS_CACHE_TTL_MS = 15000;
+let codexThreadsCache = null;
+
+function invalidateCodexThreadsCache() {
+  codexThreadsCache = null;
+}
+
 app.setName(APP_NAME);
 app.setVersion(APP_VERSION);
 
@@ -36,7 +47,7 @@ function createDefaultStore() {
       },
       claude: {
         id: "claude",
-        label: "Claude Code",
+        label: "Claude",
         command: "claude",
         authMode: "browser",
         model: DEFAULT_MODELS.claude[0],
@@ -342,7 +353,7 @@ function showAboutDialog() {
     title: `About ${APP_NAME}`,
     message: `${APP_NAME} ${APP_VERSION}`,
     detail: [
-      "A terminal-first workspace for Codex and Claude Code sessions.",
+      "A terminal-first workspace for Codex and Claude sessions.",
       "",
       `Electron ${process.versions.electron}`,
       `Node ${process.versions.node}`,
@@ -567,7 +578,7 @@ function spawnTerminal(session, command, args, provider) {
   });
 }
 
-function callCodexAppServer(method, params = {}, timeoutMs = 7000) {
+function callCodexAppServer(method, params = {}, timeoutMs = 5000) {
   return new Promise((resolve, reject) => {
     const child = spawn(commandPath("codex"), ["app-server"], {
       stdio: ["pipe", "pipe", "pipe"],
@@ -783,14 +794,26 @@ handle("shell:start", (_event, options = {}) => {
 });
 
 handle("codex:list-threads", async (_event, options = {}) => {
+  const limit = boundedInt(options.limit, 50, 1, 100);
+  const bypassCache = options.bypassCache === true;
+  if (
+    !bypassCache &&
+    codexThreadsCache &&
+    codexThreadsCache.limit >= limit &&
+    Date.now() - codexThreadsCache.time < CODEX_THREADS_CACHE_TTL_MS
+  ) {
+    return codexThreadsCache.data.slice(0, limit);
+  }
   const result = await callCodexAppServer("thread/list", {
-    limit: boundedInt(options.limit, 50, 1, 100),
+    limit,
     archived: false,
     sortKey: "updated_at",
     sortDirection: "desc",
     sourceKinds: ["cli", "appServer", "vscode"]
   });
-  return result.data || [];
+  const data = result.data || [];
+  codexThreadsCache = { time: Date.now(), limit, data };
+  return data.slice(0, limit);
 });
 
 handle("codex:resume-thread", async (_event, threadId) => {
@@ -804,8 +827,66 @@ handle("codex:resume-thread", async (_event, threadId) => {
   });
   session.lastCommand = `${provider.command} resume ${threadId}`;
   spawnTerminal(session, provider.command, ["resume", threadId], provider);
+  invalidateCodexThreadsCache();
   return { state: sanitizeStore(store), sessionId: session.id, mode: session.mode };
 });
+
+function readClaudeSessionMeta(filePath) {
+  // Read only the head of the file: the first user message and cwd appear
+  // near the top, so reading the whole (potentially multi-MB) log is wasteful.
+  const maxBytes = 256 * 1024;
+  let preview = "Claude session";
+  let cwd = "";
+  let fd;
+  try {
+    fd = fs.openSync(filePath, "r");
+    const buffer = Buffer.alloc(maxBytes);
+    const bytesRead = fs.readSync(fd, buffer, 0, maxBytes, 0);
+    let text = buffer.toString("utf8", 0, bytesRead);
+    // If we didn't reach EOF, drop the trailing partial line so JSON.parse won't choke.
+    if (bytesRead === maxBytes) {
+      const lastNewline = text.lastIndexOf("\n");
+      text = lastNewline >= 0 ? text.slice(0, lastNewline) : "";
+    }
+    let foundPreview = false;
+    for (const line of text.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      let item;
+      try {
+        item = JSON.parse(trimmed);
+      } catch {
+        continue;
+      }
+      if (!cwd && item.cwd) cwd = item.cwd;
+      if (!foundPreview && item.type === "user") {
+        const content = item.message?.content;
+        if (Array.isArray(content)) {
+          const partText = content.find((part) => part.type === "text")?.text;
+          if (partText) {
+            preview = partText;
+            foundPreview = true;
+          }
+        } else if (typeof content === "string" && content) {
+          preview = content;
+          foundPreview = true;
+        }
+      }
+      if (foundPreview && cwd) break;
+    }
+  } catch {
+    // Keep fallback metadata.
+  } finally {
+    if (fd !== undefined) {
+      try {
+        fs.closeSync(fd);
+      } catch {
+        // Best effort.
+      }
+    }
+  }
+  return { preview, cwd };
+}
 
 handle("claude:list-sessions", async (_event, options = {}) => {
   const root = path.join(os.homedir(), ".claude", "projects");
@@ -823,43 +904,30 @@ handle("claude:list-sessions", async (_event, options = {}) => {
 
   walk(root);
 
+  // Rank by mtime (cheap stat) first, then read metadata only for the newest
+  // `limit` files instead of reading every session log on the main thread.
   return files
     .map((filePath) => {
-      const stat = fs.statSync(filePath);
-      const id = path.basename(filePath, ".jsonl");
-      let preview = "Claude session";
-      let cwd = "";
       try {
-        const lines = fs.readFileSync(filePath, "utf8").split("\n").filter(Boolean);
-        for (const line of lines) {
-          const item = JSON.parse(line);
-          if (!cwd && item.cwd) cwd = item.cwd;
-          const content = item.message?.content;
-          if (item.type === "user" && Array.isArray(content)) {
-            const text = content.find((part) => part.type === "text")?.text;
-            if (text) {
-              preview = text;
-              break;
-            }
-          } else if (item.type === "user" && typeof content === "string") {
-            preview = content;
-            break;
-          }
-        }
+        return { filePath, mtimeMs: fs.statSync(filePath).mtimeMs };
       } catch {
-        // Keep fallback metadata.
+        return null;
       }
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.mtimeMs - a.mtimeMs)
+    .slice(0, limit)
+    .map(({ filePath, mtimeMs }) => {
+      const { preview, cwd } = readClaudeSessionMeta(filePath);
       return {
-        id,
+        id: path.basename(filePath, ".jsonl"),
         provider: "claude",
         preview,
         cwd,
-        updatedAt: Math.floor(stat.mtimeMs / 1000),
+        updatedAt: Math.floor(mtimeMs / 1000),
         path: filePath
       };
-    })
-    .sort((a, b) => b.updatedAt - a.updatedAt)
-    .slice(0, limit);
+    });
 });
 
 handle("claude:resume-session", async (_event, sessionId) => {
@@ -923,6 +991,7 @@ handle("session:start", (_event, options = {}) => {
   store.selectedProviderId = provider.id;
   writeStore(store);
   spawnTerminal(session, provider.command, args, provider);
+  if (provider.id === "codex") invalidateCodexThreadsCache();
   return { state: sanitizeStore(store), sessionId: session.id, mode: session.mode };
 });
 

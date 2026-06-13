@@ -35,28 +35,6 @@ const THEMES = {
     brightCyan: "#81c8be",
     brightWhite: "#f7f9ff"
   },
-  midnight: {
-    background: "#090b12",
-    foreground: "#e7ecff",
-    cursor: "#7cc7ff",
-    selectionBackground: "#1b3352",
-    black: "#090b12",
-    red: "#ff6b7a",
-    green: "#7ee787",
-    yellow: "#ffd580",
-    blue: "#7cc7ff",
-    magenta: "#c9a4ff",
-    cyan: "#78e7ff",
-    white: "#e7ecff",
-    brightBlack: "#697087",
-    brightRed: "#ff8f9a",
-    brightGreen: "#9cffaa",
-    brightYellow: "#ffe2a8",
-    brightBlue: "#a7d9ff",
-    brightMagenta: "#d9bdff",
-    brightCyan: "#a5f1ff",
-    brightWhite: "#ffffff"
-  },
   paper: {
     background: "#f7f2e8",
     foreground: "#27231d",
@@ -137,7 +115,7 @@ let activeProcessMode = "shell";
 let sidebarSessions = [];
 let sidebarSessionErrors = [];
 let currentTheme = localStorage.getItem("agentcli.theme") || "terminal";
-if (currentTheme === "midnight") currentTheme = "terminal";
+if (!THEMES[currentTheme]) currentTheme = "terminal";
 let customTheme = JSON.parse(localStorage.getItem("agentcli.customTheme") || "null") || null;
 let themeEditorOpen = false;
 let themeTarget = "background";
@@ -155,7 +133,6 @@ let notificationSoundEnabled = localStorage.getItem("agentcli.notificationSoundE
 let notificationSound = localStorage.getItem("agentcli.notificationSound") || "soft";
 let importedFonts = JSON.parse(localStorage.getItem("agentcli.importedFonts") || "[]");
 let terminalFontFamily = localStorage.getItem("agentcli.terminalFontFamily") || "";
-let previewLockedSessionKey = "";
 let renamingTabId = "";
 let dictationActive = false;
 let mediaRecorder = null;
@@ -203,6 +180,11 @@ const scratchpadSendEl = document.querySelector("#scratchpad-send");
 const scratchpadPairEl = document.querySelector("#scratchpad-pair");
 const scratchpadCloseEl = document.querySelector("#scratchpad-close");
 const scratchpadToggleEl = document.querySelector("#scratchpad-toggle");
+const newTabEl = document.querySelector("#new-tab");
+const sessionsToggleEl = document.querySelector("#sessions-toggle");
+const paletteOpenEl = document.querySelector("#palette-open");
+const hintBarEl = document.querySelector("#hint-bar");
+const hintDismissEl = document.querySelector("#hint-dismiss");
 const paletteEl = document.querySelector("#palette");
 const paletteInputEl = document.querySelector("#palette-input");
 const paletteListEl = document.querySelector("#palette-list");
@@ -211,14 +193,17 @@ const themeTargetsEl = document.querySelector("#theme-targets");
 const themeHueEl = document.querySelector("#theme-hue");
 const themeSaturationEl = document.querySelector("#theme-saturation");
 const themeBrightnessEl = document.querySelector("#theme-brightness");
-const themeOpacityEl = document.querySelector("#theme-opacity");
 const themeHueValueEl = document.querySelector("#theme-hue-value");
 const themeSaturationValueEl = document.querySelector("#theme-saturation-value");
 const themeBrightnessValueEl = document.querySelector("#theme-brightness-value");
-const themeOpacityValueEl = document.querySelector("#theme-opacity-value");
 const themeCloseEl = document.querySelector("#theme-close");
 const themeResetEl = document.querySelector("#theme-reset");
 const themeDoneEl = document.querySelector("#theme-done");
+const dialogEl = document.querySelector("#dialog");
+const dialogTitleEl = document.querySelector("#dialog-title");
+const dialogBodyEl = document.querySelector("#dialog-body");
+const dialogConfirmEl = document.querySelector("#dialog-confirm");
+const dialogCancelEl = document.querySelector("#dialog-cancel");
 keyboardCaptureEl.focus();
 
 function line(text = "") {
@@ -357,7 +342,7 @@ function renderTabs() {
               ? `<input class="tab-rename" data-tab-rename="${escapeHtml(tab.id)}" value="${escapeHtml(tabLabel(tab))}" spellcheck="false" />`
               : `<span>${escapeHtml(tabLabel(tab))}</span>`
           }
-          ${terminalTabs.size > 1 ? `<i data-close-tab="${escapeHtml(tab.id)}">×</i>` : ""}
+          ${terminalTabs.size > 1 ? `<button type="button" class="tab-close" data-close-tab="${escapeHtml(tab.id)}" aria-label="Close tab" tabindex="-1">×</button>` : ""}
         </div>
       `
     )
@@ -556,6 +541,8 @@ async function resumeRestoredTab(tab) {
 function toggleSessions(force) {
   const next = typeof force === "boolean" ? force : !appEl.classList.contains("sessions-open");
   appEl.classList.toggle("sessions-open", next);
+  sessionsToggleEl?.classList.toggle("active", next);
+  sessionsToggleEl?.setAttribute("aria-pressed", String(next));
   if (next) refreshProviderSessions();
   saveWorkspaceLayout();
   requestAnimationFrame(() => {
@@ -628,9 +615,9 @@ function renderSessions() {
           return `
             <button class="session-card ${isOpen ? "open" : ""} ${selected ? "selected" : ""}" data-provider="${escapeHtml(session.provider)}" data-session-id="${escapeHtml(session.id)}" data-session-key="${escapeHtml(sessionKey(session))}">
               <span class="pin-toggle ${pinned ? "pinned" : ""}" data-pin-session="${escapeHtml(sessionKey(session))}" title="${pinned ? "Unpin session" : "Pin session"}">${pinned ? "★" : "☆"}</span>
-              <span class="provider-mark ${escapeHtml(session.provider)}">${escapeHtml(providerMark(session.provider))}</span>
+              <span class="provider-mark ${escapeHtml(session.provider)}" aria-hidden="true">${providerMarkHtml(session.provider)}</span>
               <span class="session-main">
-                <strong>${sessionIndex}. ${pinned ? "★ " : ""}${escapeHtml(sessionTitle(session))}</strong>
+                <strong>${escapeHtml(sessionTitle(session))}</strong>
                 <span>${escapeHtml(providerLabel(session.provider))} · ${escapeHtml(formatThreadDate(session.updatedAt))} · ${escapeHtml(sessionStatus(session, isOpen))}</span>
                 <span>${escapeHtml(session.id)}</span>
               </span>
@@ -640,7 +627,7 @@ function renderSessions() {
         .join("");
       return `
         <section class="session-group">
-          <div class="session-group-title">${escapeHtml(workspace)}</div>
+          <div class="session-group-title" title="${escapeHtml(workspace)}">${escapeHtml(workspaceLabel(workspace))}</div>
           ${cards}
         </section>
       `;
@@ -674,16 +661,19 @@ function renderSessionPreview() {
     <button class="preview-toggle" data-toggle-preview>${previewCollapsed ? "show preview" : "hide preview"}</button>
     <div class="preview-body">
       <div class="preview-top">
-        <span class="provider-mark ${escapeHtml(session.provider)}">${escapeHtml(providerMark(session.provider))}</span>
+        <span class="provider-mark ${escapeHtml(session.provider)}" aria-hidden="true">${providerMarkHtml(session.provider)}</span>
         <div>
           <strong>${escapeHtml(providerLabel(session.provider))}</strong>
           <span>${escapeHtml(sessionStatus(session, isOpen))} · ${escapeHtml(formatThreadDate(session.updatedAt))}</span>
         </div>
       </div>
       <div class="preview-title">${escapeHtml(sessionTitle(session))}</div>
-      <button class="rename-session" data-rename-session="${escapeHtml(sessionKey(session))}">${alias ? "rename alias" : "add alias"}</button>
-      <div class="preview-row"><b>workspace</b><span>${escapeHtml(sessionWorkspace(session))}</span></div>
-      <div class="preview-row"><b>session</b><span>${escapeHtml(session.id)}</span></div>
+      <div class="preview-actions">
+        <button class="preview-open" data-open-session>${isOpen ? "Switch to tab" : "Open session"}</button>
+        <button class="rename-session" data-rename-session="${escapeHtml(sessionKey(session))}">${alias ? "Rename alias" : "Add alias"}</button>
+      </div>
+      <div class="preview-row"><b>workspace</b><span title="${escapeHtml(sessionWorkspace(session))}">${escapeHtml(sessionWorkspace(session))}</span></div>
+      <div class="preview-row"><b>session</b><span class="mono">${escapeHtml(session.id)}</span></div>
     </div>
   `;
 }
@@ -743,24 +733,47 @@ function rawSessionTitle(session) {
   return session.name || session.preview || session.summary || session.title || "Untitled session";
 }
 
-function renameSessionAlias(key) {
+async function renameSessionAlias(key) {
   const session = visibleSidebarSessions.find((item) => sessionKey(item) === key);
   const current = sessionAliases[key] || "";
-  const next = window.prompt("Session alias", current || rawSessionTitle(session || {}));
+  const next = await inputDialog({
+    title: "Session alias",
+    label: "Give this session a memorable name. Leave empty to clear the alias.",
+    value: current || rawSessionTitle(session || {}),
+    placeholder: "Session alias",
+    confirmText: "Save"
+  });
   if (next === null) return;
-  const trimmed = next.trim();
-  if (trimmed) sessionAliases[key] = trimmed;
+  if (next) sessionAliases[key] = next;
   else delete sessionAliases[key];
   localStorage.setItem("agentcli.sessionAliases", JSON.stringify(sessionAliases));
   renderSessions();
 }
 
 function providerLabel(provider) {
-  return provider === "claude" ? "Claude" : provider === "codex" ? "OpenAI" : provider || "agentcli";
+  return provider === "claude" ? "Claude" : provider === "codex" ? "Codex" : provider || "agentcli";
 }
 
 function providerMark(provider) {
-  return provider === "claude" ? "C" : provider === "codex" ? "AI" : "$";
+  return provider === "claude" ? "C" : provider === "codex" ? "Cx" : "$";
+}
+
+// Claude's radiating sunburst, drawn as 12 tapered blades around the center.
+function claudeMarkSvg() {
+  const blade = "M12 12 Q13.2 6.6 12 2.3 Q10.8 6.6 12 12 Z";
+  const blades = Array.from({ length: 12 }, (_unused, index) => `<path d="${blade}" transform="rotate(${index * 30} 12 12)"/>`).join("");
+  return `<svg class="mark-svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">${blades}</svg>`;
+}
+
+// OpenAI logomark.
+function codexMarkSvg() {
+  return `<svg class="mark-svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.872zm16.5963 3.8558L13.1038 8.364 15.1192 7.2a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.407-.667zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654l2.602-1.4998 2.6069 1.4998v2.9994l-2.5974 1.4997-2.6067-1.4997Z"/></svg>`;
+}
+
+function providerMarkHtml(provider) {
+  if (provider === "claude") return claudeMarkSvg();
+  if (provider === "codex") return codexMarkSvg();
+  return escapeHtml(providerMark(provider));
 }
 
 function sessionWorkspace(session) {
@@ -900,7 +913,7 @@ async function handoffActiveTab(targetProvider) {
     cwd: sourceTab.cwd || ""
   });
   await refresh(result.state);
-  addTerminalTab({
+  const tab = addTerminalTab({
     sessionId: result.sessionId,
     title: `${targetProvider}: handoff`,
     mode: "agent",
@@ -908,6 +921,7 @@ async function handoffActiveTab(targetProvider) {
     cwd: sourceTab.cwd || "",
     color: targetProvider === "claude" ? "#d97745" : "#8caaee"
   });
+  captureAgentSessionId(tab);
 
   const prompt = handoffPrompt(sourceTab, targetProvider);
   setTimeout(() => {
@@ -918,6 +932,7 @@ async function handoffActiveTab(targetProvider) {
 function renderScratchpad() {
   scratchpadEl.classList.toggle("collapsed", !scratchpadOpen);
   scratchpadToggleEl.classList.toggle("active", scratchpadOpen);
+  scratchpadToggleEl.setAttribute("aria-pressed", String(scratchpadOpen));
   scratchpadInputEl.value = scratchpadText;
   if (scratchpadOpen) requestAnimationFrame(() => scratchpadInputEl.focus());
   requestAnimationFrame(refitTerminal);
@@ -950,19 +965,74 @@ function sendScratchpadToActiveTab() {
   setScratchpadOpen(false);
 }
 
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function listProviderSessions(provider, { bypassCache = false } = {}) {
+  try {
+    if (provider === "claude") {
+      return (await window.agentcli.listClaudeSessions({ limit: 50 })).map((session) => ({ ...session, provider: "claude" }));
+    }
+    if (provider === "codex") {
+      return (await window.agentcli.listCodexThreads({ limit: 50, bypassCache })).map((thread) => ({ ...thread, provider: "codex" }));
+    }
+  } catch {
+    return [];
+  }
+  return [];
+}
+
+function assignProviderSessionId(tab, providerSessionId) {
+  if (!tab || !providerSessionId || tab.providerSessionId === providerSessionId) return;
+  tab.providerSessionId = providerSessionId;
+  saveWorkspaceLayout();
+  renderTabs();
+  renderSessions();
+  // Best effort: keep the persisted store in sync. Shell-hosted agents have no
+  // store entry, so a failure here is expected and harmless.
+  window.agentcli.setProviderSessionId({ sessionId: tab.sessionId, providerSessionId }).catch(() => {});
+}
+
+// Freshly started agents (handoff, pair, worktree, or a typed `claude`/`codex`)
+// don't yet know their provider session id, so they can't be restored after a
+// restart. Discover it by diffing the provider's session list before and after
+// launch and attach the new id to the tab.
+async function captureAgentSessionId(tab) {
+  if (!tab?.provider || tab.providerSessionId || tab.restored) return;
+  const provider = tab.provider;
+  const cwd = tab.cwd || "";
+  const before = new Set((await listProviderSessions(provider, { bypassCache: true })).map((session) => session.id));
+  const byRecency = (a, b) => normalizedTimestamp(b.updatedAt) - normalizedTimestamp(a.updatedAt);
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    await delay(1500);
+    if (tab.providerSessionId || !terminalTabs.has(tab.id)) return;
+    const fresh = (await listProviderSessions(provider, { bypassCache: true })).filter((session) => !before.has(session.id));
+    if (!fresh.length) continue;
+    const match =
+      (cwd && fresh.filter((session) => sessionWorkspace(session) === cwd).sort(byRecency)[0]) ||
+      fresh.sort(byRecency)[0];
+    if (match) {
+      assignProviderSessionId(tab, match.id);
+      return;
+    }
+  }
+}
+
 async function startAgentWithPrompt(provider, prompt, title = `${provider}: task`) {
   const result = await window.agentcli.startSession({
     providerId: provider,
     title
   });
   await refresh(result.state);
-  addTerminalTab({
+  const tab = addTerminalTab({
     sessionId: result.sessionId,
     title,
     mode: "agent",
     provider,
     color: provider === "claude" ? "#d97745" : "#8caaee"
   });
+  captureAgentSessionId(tab);
   setTimeout(() => {
     sendTextToSession(result.sessionId, prompt);
   }, 700);
@@ -1025,26 +1095,39 @@ async function ensureGitWorktrees() {
 async function chooseGitWorktreeFromPrompt() {
   if (!(await ensureGitWorktrees())) return null;
   const current = selectedGitWorktree();
-  const choices = gitWorktrees
-    .map((worktree, index) => `${index + 1}. ${worktree.branch || "detached"} - ${worktree.path}`)
-    .join("\n");
-  const answer = window.prompt(`Choose worktree:\n${choices}`, current ? String(gitWorktrees.indexOf(current) + 1) : "1");
-  if (!answer) return current;
-  const index = Number(answer) - 1;
-  if (!Number.isInteger(index) || !gitWorktrees[index]) return current;
-  selectedWorktreePath = gitWorktrees[index].path;
+  const chosen = await selectDialog({
+    title: "Choose worktree",
+    confirmText: "Select",
+    selectedValue: current?.path || "",
+    items: gitWorktrees.map((worktree) => ({
+      value: worktree.path,
+      label: worktree.branch || (worktree.detached ? "detached" : worktree.name || "worktree"),
+      detail: worktree.path
+    }))
+  });
+  if (!chosen) return current;
+  selectedWorktreePath = chosen.value;
   localStorage.setItem("agentcli.selectedWorktreePath", selectedWorktreePath);
-  printGitWorktrees();
-  return gitWorktrees[index];
+  return gitWorktrees.find((worktree) => worktree.path === chosen.value) || current;
 }
 
 async function createGitWorktree() {
   if (!worktreeRepoPath) await chooseGitRepo();
   if (!worktreeRepoPath) return;
-  const branch = window.prompt("Branch name for new worktree");
+  const branch = await inputDialog({
+    title: "New worktree",
+    label: "Branch name (created if it does not exist).",
+    placeholder: "feature/my-branch",
+    confirmText: "Next"
+  });
   if (!branch) return;
   const suggestedPath = await window.agentcli.suggestGitWorktreePath({ repoPath: worktreeRepoPath, branch });
-  const worktreePath = window.prompt("Worktree path", suggestedPath);
+  const worktreePath = await inputDialog({
+    title: "New worktree",
+    label: "Worktree path",
+    value: suggestedPath,
+    confirmText: "Create"
+  });
   if (!worktreePath) return;
   try {
     setGitWorktreeState(await window.agentcli.createGitWorktree({ repoPath: worktreeRepoPath, branch, worktreePath }));
@@ -1063,7 +1146,13 @@ async function removeSelectedGitWorktree() {
     line(`${COLORS.red}Refusing to remove the main worktree.${COLORS.reset}`);
     return;
   }
-  if (!window.confirm(`Remove worktree?\n${worktree.path}`)) return;
+  const confirmed = await confirmDialog({
+    title: "Remove worktree",
+    message: `Remove this worktree?\n${worktree.path}`,
+    confirmText: "Remove",
+    danger: true
+  });
+  if (!confirmed) return;
   try {
     setGitWorktreeState(await window.agentcli.removeGitWorktree({ repoPath: worktreeRepoPath, worktreePath: worktree.path }));
     printGitWorktrees();
@@ -1095,7 +1184,7 @@ async function openGitWorktreeAgent(provider) {
     cwd: worktree.path
   });
   await refresh(result.state);
-  addTerminalTab({
+  const tab = addTerminalTab({
     sessionId: result.sessionId,
     title: `${provider}: ${worktree.branch || worktree.name}`,
     mode: "agent",
@@ -1103,6 +1192,7 @@ async function openGitWorktreeAgent(provider) {
     cwd: worktree.path,
     color: provider === "claude" ? "#d97745" : "#8caaee"
   });
+  captureAgentSessionId(tab);
 }
 
 async function runPairMode() {
@@ -1116,23 +1206,7 @@ async function runPairMode() {
   setScratchpadOpen(false);
 }
 
-function formatThreadDate(timestampSeconds) {
-  if (!timestampSeconds) return "";
-  return new Date(normalizedTimestamp(timestampSeconds)).toLocaleString();
-}
-
-function normalizedTimestamp(timestamp) {
-  if (!timestamp) return 0;
-  return typeof timestamp === "number" && timestamp < 100000000000 ? timestamp * 1000 : Number(timestamp);
-}
-
-function escapeHtml(value) {
-  return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
-}
+// workspaceLabel, formatThreadDate, normalizedTimestamp, escapeHtml moved to lib/format.js
 
 function setTheme(themeName) {
   const theme = THEMES[themeName];
@@ -1160,7 +1234,9 @@ function applyThemeToDocument(theme) {
   const panel = theme.black || "#202532";
   const background = theme.background || "#252936";
   const foreground = theme.foreground || "#dfe5f2";
-  const muted = theme.brightBlack || "#9aa3b7";
+  // Secondary UI text. The terminal's "bright black" is far too dim for chrome,
+  // so blend the foreground toward the background for a readable muted tone.
+  const muted = mixHex(foreground, background, 0.62);
   const vars = {
     "--bg": background,
     "--panel": panel,
@@ -1245,18 +1321,15 @@ function renderThemeEditor() {
   themeHueEl.value = String(hsb.h);
   themeSaturationEl.value = String(hsb.s);
   themeBrightnessEl.value = String(hsb.b);
-  themeOpacityEl.value = "100";
   themeHueValueEl.textContent = `${hsb.h}°`;
   themeSaturationValueEl.textContent = `${hsb.s}%`;
   themeBrightnessValueEl.textContent = `${hsb.b}%`;
-  themeOpacityValueEl.textContent = "100%";
 }
 
 function updateThemeTargetFromSliders() {
   themeHueValueEl.textContent = `${themeHueEl.value}°`;
   themeSaturationValueEl.textContent = `${themeSaturationEl.value}%`;
   themeBrightnessValueEl.textContent = `${themeBrightnessEl.value}%`;
-  themeOpacityValueEl.textContent = `${themeOpacityEl.value}%`;
   const next = {
     ...activeTheme(),
     [themeTarget]: hsbToHex(Number(themeHueEl.value), Number(themeSaturationEl.value), Number(themeBrightnessEl.value))
@@ -1267,65 +1340,7 @@ function updateThemeTargetFromSliders() {
   applyCustomTheme(next);
 }
 
-function hexToRgb(hex) {
-  const normalized = hex.replace("#", "");
-  const value = parseInt(normalized.length === 3 ? normalized.split("").map((char) => char + char).join("") : normalized, 16);
-  return {
-    r: (value >> 16) & 255,
-    g: (value >> 8) & 255,
-    b: value & 255
-  };
-}
-
-function rgbToHex(r, g, b) {
-  return `#${[r, g, b].map((value) => Math.max(0, Math.min(255, Math.round(value))).toString(16).padStart(2, "0")).join("")}`;
-}
-
-function hexToHsb(hex) {
-  const { r, g, b } = hexToRgb(hex);
-  const red = r / 255;
-  const green = g / 255;
-  const blue = b / 255;
-  const max = Math.max(red, green, blue);
-  const min = Math.min(red, green, blue);
-  const delta = max - min;
-  let h = 0;
-  if (delta) {
-    if (max === red) h = ((green - blue) / delta) % 6;
-    else if (max === green) h = (blue - red) / delta + 2;
-    else h = (red - green) / delta + 4;
-    h *= 60;
-    if (h < 0) h += 360;
-  }
-  return {
-    h: Math.round(h),
-    s: Math.round((max === 0 ? 0 : delta / max) * 100),
-    b: Math.round(max * 100)
-  };
-}
-
-function hsbToHex(h, s, b) {
-  const saturation = s / 100;
-  const brightness = b / 100;
-  const chroma = brightness * saturation;
-  const x = chroma * (1 - Math.abs(((h / 60) % 2) - 1));
-  const m = brightness - chroma;
-  let red = 0;
-  let green = 0;
-  let blue = 0;
-  if (h < 60) [red, green, blue] = [chroma, x, 0];
-  else if (h < 120) [red, green, blue] = [x, chroma, 0];
-  else if (h < 180) [red, green, blue] = [0, chroma, x];
-  else if (h < 240) [red, green, blue] = [0, x, chroma];
-  else if (h < 300) [red, green, blue] = [x, 0, chroma];
-  else [red, green, blue] = [chroma, 0, x];
-  return rgbToHex((red + m) * 255, (green + m) * 255, (blue + m) * 255);
-}
-
-function adjustHexBrightness(hex, delta) {
-  const { r, g, b } = hexToRgb(hex);
-  return rgbToHex(r + delta, g + delta, b + delta);
-}
+// Color helpers (hexToRgb, rgbToHex, hexToHsb, hsbToHex, adjustHexBrightness, mixHex) moved to lib/colors.js
 
 async function loadImportedFonts() {
   for (const font of importedFonts) {
@@ -1544,7 +1559,7 @@ function paletteActions() {
     {
       id: "latest-codex",
       title: "Open latest Codex",
-      detail: "resume newest OpenAI Codex session",
+      detail: "resume newest Codex session",
       run: async () => {
         await ensureSidebarSessionsLoaded();
         const session = latestSessionForProvider("codex");
@@ -1554,7 +1569,7 @@ function paletteActions() {
     {
       id: "latest-claude",
       title: "Open latest Claude",
-      detail: "resume newest Claude Code session",
+      detail: "resume newest Claude session",
       run: async () => {
         await ensureSidebarSessionsLoaded();
         const session = latestSessionForProvider("claude");
@@ -1618,7 +1633,7 @@ function paletteActions() {
     {
       id: "worktree-open-claude",
       title: "Open worktree in Claude",
-      detail: "start Claude Code inside a worktree",
+      detail: "start Claude inside a worktree",
       run: () => openGitWorktreeAgent("claude")
     },
     {
@@ -1669,6 +1684,12 @@ function paletteActions() {
       detail: "edit terminal colors with HSB sliders",
       run: () => openThemeEditor()
     },
+    ...Object.keys(THEMES).map((name) => ({
+      id: `theme-${name}`,
+      title: `Theme: ${name}`,
+      detail: name === currentTheme && !customTheme ? "current theme" : "switch to built-in theme",
+      run: () => setTheme(name)
+    })),
     ...[
       ["none", ""],
       ["green", "#a8ff60"],
@@ -1734,6 +1755,119 @@ async function runPaletteAction(actionId) {
   await action.run();
 }
 
+let dialogResolver = null;
+let dialogMode = "input";
+let dialogSelectItems = [];
+let dialogSelectIndex = 0;
+let dialogSelectEmptyText = "";
+
+let dialogReturnFocus = null;
+
+function openDialogShell() {
+  dialogReturnFocus = document.activeElement;
+  dialogEl.classList.add("open");
+  dialogEl.setAttribute("aria-hidden", "false");
+}
+
+function closeDialog(result) {
+  const resolve = dialogResolver;
+  dialogResolver = null;
+  dialogSelectItems = [];
+  dialogEl.classList.remove("open");
+  dialogEl.setAttribute("aria-hidden", "true");
+  // Restore focus to wherever it was before the dialog opened, falling back to
+  // the terminal capture so keystrokes keep flowing.
+  if (dialogReturnFocus && dialogReturnFocus.isConnected && dialogReturnFocus !== document.body) {
+    dialogReturnFocus.focus();
+  } else {
+    keyboardCaptureEl.focus();
+  }
+  dialogReturnFocus = null;
+  if (resolve) resolve(result);
+}
+
+function inputDialog({ title, label = "", value = "", placeholder = "", confirmText = "Save" }) {
+  return new Promise((resolve) => {
+    dialogResolver = resolve;
+    dialogMode = "input";
+    dialogTitleEl.textContent = title;
+    dialogBodyEl.innerHTML = `
+      ${label ? `<label class="dialog-label" for="dialog-input">${escapeHtml(label)}</label>` : ""}
+      <input id="dialog-input" class="dialog-input" type="text" value="${escapeHtml(value)}" placeholder="${escapeHtml(placeholder)}" spellcheck="false" autocomplete="off" />
+    `;
+    dialogConfirmEl.textContent = confirmText;
+    dialogConfirmEl.className = "dialog-button primary";
+    dialogConfirmEl.style.display = "";
+    openDialogShell();
+    requestAnimationFrame(() => {
+      const input = dialogBodyEl.querySelector("#dialog-input");
+      input?.focus();
+      input?.select();
+    });
+  });
+}
+
+function confirmDialog({ title, message = "", confirmText = "Confirm", danger = false }) {
+  return new Promise((resolve) => {
+    dialogResolver = resolve;
+    dialogMode = "confirm";
+    dialogTitleEl.textContent = title;
+    dialogBodyEl.innerHTML = `<p class="dialog-message">${escapeHtml(message)}</p>`;
+    dialogConfirmEl.textContent = confirmText;
+    dialogConfirmEl.className = `dialog-button ${danger ? "danger" : "primary"}`;
+    dialogConfirmEl.style.display = "";
+    openDialogShell();
+    requestAnimationFrame(() => dialogConfirmEl.focus());
+  });
+}
+
+function renderDialogSelect() {
+  if (!dialogSelectItems.length) {
+    dialogBodyEl.innerHTML = `<div class="dialog-empty">${escapeHtml(dialogSelectEmptyText)}</div>`;
+    return;
+  }
+  dialogBodyEl.innerHTML = `<div class="dialog-list">${dialogSelectItems
+    .map(
+      (item, index) => `
+        <button class="dialog-option ${index === dialogSelectIndex ? "active" : ""}" data-dialog-index="${index}" type="button">
+          <strong>${escapeHtml(item.label)}</strong>
+          ${item.detail ? `<span>${escapeHtml(item.detail)}</span>` : ""}
+        </button>
+      `
+    )
+    .join("")}</div>`;
+}
+
+function selectDialog({ title, items, confirmText = "Open", selectedValue = "", emptyText = "Nothing to choose." }) {
+  return new Promise((resolve) => {
+    dialogResolver = resolve;
+    dialogMode = "select";
+    dialogSelectItems = items;
+    dialogSelectEmptyText = emptyText;
+    const preselected = items.findIndex((item) => item.value === selectedValue);
+    dialogSelectIndex = preselected >= 0 ? preselected : 0;
+    dialogTitleEl.textContent = title;
+    dialogConfirmEl.textContent = confirmText;
+    dialogConfirmEl.className = "dialog-button primary";
+    dialogConfirmEl.style.display = items.length ? "" : "none";
+    renderDialogSelect();
+    openDialogShell();
+    requestAnimationFrame(() => dialogBodyEl.querySelector(".dialog-option.active")?.scrollIntoView({ block: "nearest" }));
+  });
+}
+
+function confirmDialogSelection() {
+  if (!dialogResolver) return;
+  if (dialogMode === "input") {
+    const input = dialogBodyEl.querySelector("#dialog-input");
+    closeDialog((input?.value ?? "").trim());
+  } else if (dialogMode === "confirm") {
+    closeDialog(true);
+  } else {
+    closeDialog(dialogSelectItems[dialogSelectIndex] ?? null);
+  }
+}
+
 async function handleCommand(raw) {
   const input = raw.trim();
   if (!input) {
@@ -1769,15 +1903,18 @@ function isAppCommand(input) {
   return input === "/sessions" || input === "/theme" || input.startsWith("/theme ");
 }
 
+// detectsInteractiveAgent moved to lib/agent.js
+
 function detectAgentCommand(input) {
-  const command = input.trim().split(/\s+/)[0];
-  if (command !== "codex" && command !== "claude") return;
+  const command = detectsInteractiveAgent(input);
+  if (!command) return;
   const tab = terminalTabs.get(activeTabId);
   if (tab) {
     tab.mode = "agent";
     tab.provider = command;
     tab.title = command;
     tab.awaitingCompletionSound = false;
+    captureAgentSessionId(tab);
   }
   activeProcessMode = "agent";
   commandBuffer = "";
@@ -1786,7 +1923,6 @@ function detectAgentCommand(input) {
   completionIndex = -1;
   renderTabs();
   saveWorkspaceLayout();
-  toggleSessions(true);
 }
 
 function writeCommandChar(data) {
@@ -1947,6 +2083,7 @@ function routeInput(data) {
 }
 
 document.addEventListener("keydown", (event) => {
+  if (dialogResolver) return;
   if (event.metaKey && event.key.toLowerCase() === "k") {
     event.preventDefault();
     event.stopPropagation();
@@ -2061,7 +2198,8 @@ window.agentcli.onSetTheme((theme) => {
   setTheme(theme);
 });
 
-sessionListEl.addEventListener("click", async (event) => {
+// Single click selects + previews a session; double click (or Enter) opens it.
+sessionListEl.addEventListener("click", (event) => {
   const pinButton = event.target.closest("[data-pin-session]");
   if (pinButton) {
     event.preventDefault();
@@ -2071,48 +2209,36 @@ sessionListEl.addEventListener("click", async (event) => {
   }
   const card = event.target.closest("[data-session-id]");
   if (!card) return;
-  previewLockedSessionKey = "";
   selectedSessionKey = card.dataset.sessionKey;
+  if (previewCollapsed) {
+    previewCollapsed = false;
+    localStorage.setItem("agentcli.previewCollapsed", "false");
+  }
   renderSessions();
+});
+
+sessionListEl.addEventListener("dblclick", async (event) => {
+  const card = event.target.closest("[data-session-id]");
+  if (!card || event.target.closest("[data-pin-session]")) return;
+  event.preventDefault();
+  selectedSessionKey = card.dataset.sessionKey;
   await openProviderSession(card.dataset.provider, card.dataset.sessionId);
 });
 
-sessionListEl.addEventListener("contextmenu", (event) => {
-  const card = event.target.closest("[data-session-key]");
-  if (!card) return;
-  event.preventDefault();
-  event.stopPropagation();
-  selectedSessionKey = card.dataset.sessionKey;
-  previewLockedSessionKey = card.dataset.sessionKey;
-  previewCollapsed = false;
-  localStorage.setItem("agentcli.previewCollapsed", "false");
-  renderSessions();
-});
-
-sessionListEl.addEventListener("mousemove", (event) => {
-  const card = event.target.closest("[data-session-key]");
-  if (!card || card.dataset.sessionKey === selectedSessionKey) return;
-  if (previewLockedSessionKey) {
-    previewLockedSessionKey = "";
-    previewCollapsed = true;
-    localStorage.setItem("agentcli.previewCollapsed", "true");
-    renderSessionPreview();
+sessionPreviewEl.addEventListener("click", async (event) => {
+  const openButton = event.target.closest("[data-open-session]");
+  if (openButton) {
+    const session = selectedSidebarSession();
+    if (session) await openProviderSession(session.provider, session.id);
     return;
   }
-  if (previewCollapsed) return;
-  selectedSessionKey = card.dataset.sessionKey;
-  renderSessions();
-});
-
-sessionPreviewEl.addEventListener("click", (event) => {
   const renameButton = event.target.closest("[data-rename-session]");
   if (renameButton) {
-    renameSessionAlias(renameButton.dataset.renameSession);
+    await renameSessionAlias(renameButton.dataset.renameSession);
     return;
   }
   if (!event.target.closest("[data-toggle-preview]")) return;
   previewCollapsed = !previewCollapsed;
-  previewLockedSessionKey = previewCollapsed ? "" : selectedSessionKey;
   localStorage.setItem("agentcli.previewCollapsed", String(previewCollapsed));
   renderSessionPreview();
 });
@@ -2139,6 +2265,41 @@ scratchpadToggleEl.addEventListener("click", (event) => {
   event.stopPropagation();
   setScratchpadOpen(!scratchpadOpen);
 });
+
+newTabEl.addEventListener("click", (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  newAgentcliTab();
+});
+
+sessionsToggleEl.addEventListener("click", (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  toggleSessions();
+});
+
+paletteOpenEl.addEventListener("click", (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  openPalette();
+});
+
+hintDismissEl.addEventListener("click", (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  dismissHintBar();
+});
+
+function dismissHintBar() {
+  hintBarEl.classList.add("collapsed");
+  localStorage.setItem("agentcli.hintDismissed", "true");
+  requestAnimationFrame(refitTerminal);
+}
+
+function initHintBar() {
+  const dismissed = localStorage.getItem("agentcli.hintDismissed") === "true";
+  hintBarEl.classList.toggle("collapsed", dismissed);
+}
 
 tabsEl.addEventListener("click", (event) => {
   if (event.target.closest("[data-tab-rename]")) return;
@@ -2199,6 +2360,11 @@ paletteInputEl.addEventListener("input", () => {
 });
 
 paletteInputEl.addEventListener("keydown", async (event) => {
+  if (event.key === "Tab") {
+    // Palette is arrow-key driven; keep focus in the input instead of escaping to chrome.
+    event.preventDefault();
+    return;
+  }
   if (event.key === "Escape") {
     event.preventDefault();
     closePalette();
@@ -2236,6 +2402,59 @@ paletteListEl.addEventListener("click", async (event) => {
 
 paletteEl.addEventListener("mousedown", (event) => {
   if (event.target === paletteEl) closePalette();
+});
+
+dialogConfirmEl.addEventListener("click", confirmDialogSelection);
+
+dialogCancelEl.addEventListener("click", () => closeDialog(null));
+
+dialogEl.addEventListener("mousedown", (event) => {
+  if (event.target === dialogEl) closeDialog(null);
+});
+
+dialogBodyEl.addEventListener("click", (event) => {
+  const option = event.target.closest("[data-dialog-index]");
+  if (!option) return;
+  dialogSelectIndex = Number(option.dataset.dialogIndex);
+  closeDialog(dialogSelectItems[dialogSelectIndex] ?? null);
+});
+
+dialogEl.addEventListener("keydown", (event) => {
+  if (!dialogResolver) return;
+  if (event.key === "Tab") {
+    const focusables = Array.from(
+      dialogEl.querySelectorAll('button:not([disabled]), input, [tabindex]:not([tabindex="-1"])')
+    ).filter((el) => el.offsetParent !== null);
+    if (focusables.length) {
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+    return;
+  }
+  if (event.key === "Escape") {
+    event.preventDefault();
+    closeDialog(null);
+    return;
+  }
+  if (event.key === "Enter") {
+    event.preventDefault();
+    confirmDialogSelection();
+    return;
+  }
+  if (dialogMode === "select" && (event.key === "ArrowDown" || event.key === "ArrowUp") && dialogSelectItems.length) {
+    event.preventDefault();
+    const delta = event.key === "ArrowDown" ? 1 : -1;
+    dialogSelectIndex = (dialogSelectIndex + delta + dialogSelectItems.length) % dialogSelectItems.length;
+    renderDialogSelect();
+    dialogBodyEl.querySelector(".dialog-option.active")?.scrollIntoView({ block: "nearest" });
+  }
 });
 
 themeTargetsEl.addEventListener("click", (event) => {
@@ -2349,13 +2568,18 @@ keyboardCaptureEl.addEventListener("input", () => {
 
 keyboardCaptureEl.addEventListener("blur", () => {
   setTimeout(() => {
+    const active = document.activeElement;
     if (
-      document.activeElement !== sessionSearchEl &&
-      document.activeElement !== paletteInputEl &&
-      document.activeElement !== scratchpadInputEl
+      dialogResolver ||
+      active === sessionSearchEl ||
+      active === paletteInputEl ||
+      active === scratchpadInputEl ||
+      active?.closest?.("#dialog") ||
+      active?.closest?.("#theme-editor")
     ) {
-      keyboardCaptureEl.focus();
+      return;
     }
+    keyboardCaptureEl.focus();
   }, 0);
 });
 
@@ -2375,6 +2599,7 @@ refresh().then(async () => {
     setTheme(currentTheme);
   }
   renderScratchpad();
+  initHintBar();
   await restoreWorkspaceLayout();
   applyTerminalFont();
   keyboardCaptureEl.focus();
