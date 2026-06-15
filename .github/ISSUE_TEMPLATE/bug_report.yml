@@ -1,0 +1,69 @@
+name: Bug report
+description: Something broke or behaved unexpectedly
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! AgentCLI is alpha, so details help a lot.
+        Tip: grab your log file via **Help → Reveal Log File** and attach it below.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug, and what you expected instead.
+      placeholder: When I…, the app… but I expected…
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open …
+        2. Click …
+        3. See …
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: AgentCLI version
+      description: See **AgentCLI → About AgentCLI** in the menu bar.
+      placeholder: e.g. 0.0.3
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version & chip
+      placeholder: e.g. macOS 15.1, Apple Silicon (arm64)
+    validations:
+      required: true
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Where did it happen?
+      options:
+        - Shell tab
+        - Claude session
+        - Codex session
+        - Sidebar / sessions
+        - Other / not sure
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Paste relevant lines from the log file (Help → Reveal Log File), or attach the file. Please redact anything sensitive.
+      render: text
+    validations:
+      required: false
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Screenshots, related issues, anything else.
+    validations:
+      required: false
