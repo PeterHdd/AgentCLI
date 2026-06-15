@@ -76,12 +76,13 @@
     "dist:dir:arm64": "npm run icon:generate && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac --dir --arm64 --publish never",
     "dist:dir:x64": "npm run icon:generate && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac --dir --x64 --publish never",
     "dist:dmg": "npm run dist:dmg:arm64",
-    "dist:dmg:arm64": "npm run icon:generate && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg --arm64 --publish never",
-    "dist:dmg:x64": "npm run icon:generate && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg --x64 --publish never",
-    "dist:dmg:all": "npm run icon:generate && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg --arm64 --x64 --publish never"
+    "dist:dmg:arm64": "npm run icon:generate && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg --arm64 --publish never -c.extraMetadata.sentryDsn=\"$SENTRY_DSN\"",
+    "dist:dmg:x64": "npm run icon:generate && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg --x64 --publish never -c.extraMetadata.sentryDsn=\"$SENTRY_DSN\"",
+    "dist:dmg:all": "npm run icon:generate && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg --arm64 --x64 --publish never -c.extraMetadata.sentryDsn=\"$SENTRY_DSN\""
   },
   "dependencies": {
     "@homebridge/node-pty-prebuilt-multiarch": "^0.13.1",
+    "@sentry/electron": "^7.13.0",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^5.5.0"
   },

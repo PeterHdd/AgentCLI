@@ -2,6 +2,11 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("agentcli", {
   getState: () => ipcRenderer.invoke("app:get-state"),
+  reportError: (payload) => ipcRenderer.invoke("log:report", payload),
+  openLogs: () => ipcRenderer.invoke("log:open"),
+  whichAgents: () => ipcRenderer.invoke("app:which-agents"),
+  getTelemetry: () => ipcRenderer.invoke("telemetry:get"),
+  setTelemetry: (enabled) => ipcRenderer.invoke("telemetry:set", enabled),
   readClipboardText: () => ipcRenderer.invoke("clipboard:read-text"),
   writeClipboardText: (text) => ipcRenderer.invoke("clipboard:write-text", text),
   importFont: () => ipcRenderer.invoke("font:import"),
