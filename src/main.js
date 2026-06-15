@@ -1,14 +1,152 @@
-const { app, BrowserWindow, Menu, clipboard, dialog, ipcMain, nativeImage, safeStorage } = require("electron");
+const { app, BrowserWindow, Menu, clipboard, crashReporter, dialog, ipcMain, nativeImage, safeStorage, shell } = require("electron");
 const { execFileSync, spawn } = require("child_process");
 const path = require("path");
 const fs = require("fs");
 const os = require("os");
 const crypto = require("crypto");
 const pty = require("@homebridge/node-pty-prebuilt-multiarch");
+const Sentry = require("@sentry/electron/main");
 const packageJson = require("../package.json");
 
 const APP_NAME = "AgentCLI";
 const APP_VERSION = packageJson.version;
+
+// Write native crash minidumps locally (never uploaded) so node-pty/Electron
+// crashes leave something to inspect under app.getPath("crashDumps").
+crashReporter.start({ submitURL: "", uploadToServer: false, compress: true });
+
+const MAX_LOG_BYTES = 1.5 * 1024 * 1024;
+let logPathsCache = null;
+
+function logPaths() {
+  if (!logPathsCache) {
+    const dir = path.join(app.getPath("userData"), "logs");
+    logPathsCache = { dir, file: path.join(dir, "agentcli.log"), prev: path.join(dir, "agentcli.prev.log") };
+  }
+  return logPathsCache;
+}
+
+function writeLog(text) {
+  try {
+    const { dir, file, prev } = logPaths();
+    fs.mkdirSync(dir, { recursive: true });
+    try {
+      if (fs.statSync(file).size > MAX_LOG_BYTES) fs.renameSync(file, prev);
+    } catch {
+      // No existing log yet, or rotate failed; keep going.
+    }
+    fs.appendFileSync(file, `${text}\n`);
+  } catch {
+    // Logging must never throw and take down the app.
+  }
+}
+
+function logError({ source = "main", type = "error", message = "", stack = "", context = "" } = {}) {
+  const timestamp = new Date().toISOString();
+  let entry = `[${timestamp}] [${source}] ${type}: ${message}`;
+  if (stack) entry += `\n${String(stack).split("\n").map((line) => `    ${line}`).join("\n")}`;
+  if (context) entry += `\n    context: ${context}`;
+  writeLog(entry);
+}
+
+function logSessionBanner() {
+  writeLog(
+    `\n==== ${APP_NAME} ${APP_VERSION} · ${process.platform} ${process.arch} · electron ${process.versions.electron} · node ${process.versions.node} · ${new Date().toISOString()} ====`
+  );
+}
+
+// --- Crash/error telemetry (opt-in, scrubbed) -------------------------------
+// DSN is never committed: it comes from the environment in dev, or from
+// build-injected package metadata (electron-builder extraMetadata) in releases.
+const SENTRY_DSN = process.env.SENTRY_DSN || packageJson.sentryDsn || "";
+let sentryActive = false;
+
+// Strip anything potentially sensitive before an event leaves the machine.
+function scrubEvent(event) {
+  try {
+    const username = os.userInfo().username;
+    const redact = (value) => (typeof value === "string" && username ? value.split(username).join("<user>") : value);
+    if (event.message) event.message = redact(event.message);
+    for (const exception of event.exception?.values || []) {
+      exception.value = redact(exception.value);
+      for (const frame of exception.stacktrace?.frames || []) {
+        frame.filename = redact(frame.filename);
+        frame.abs_path = redact(frame.abs_path);
+        frame.module = redact(frame.module);
+      }
+    }
+    delete event.request;
+    delete event.user;
+    delete event.server_name;
+  } catch {
+    return null; // If scrubbing fails, drop the event rather than risk a leak.
+  }
+  return event;
+}
+
+function initSentry() {
+  if (sentryActive || !SENTRY_DSN) return;
+  try {
+    Sentry.init({
+      dsn: SENTRY_DSN,
+      release: `agentcli@${APP_VERSION}`,
+      environment: APP_VERSION.includes("-") ? "dev" : "alpha",
+      autoSessionTracking: false,
+      sendDefaultPii: false,
+      beforeBreadcrumb: () => null, // never capture console/terminal breadcrumbs
+      beforeSend: scrubEvent
+    });
+    sentryActive = true;
+  } catch {
+    // Telemetry must never block startup.
+  }
+}
+
+function reportToSentry({ source = "renderer", type = "error", message = "", stack = "", context = "" } = {}) {
+  if (!sentryActive) return;
+  try {
+    const error = new Error(`[${source}] ${type}: ${message}`);
+    if (stack) error.stack = stack;
+    Sentry.captureException(error, { tags: { source, type }, extra: context ? { context } : undefined });
+  } catch {
+    // ignore
+  }
+}
+
+function telemetryState() {
+  const telemetry = readStore().telemetry || {};
+  return { enabled: Boolean(telemetry.enabled), asked: Boolean(telemetry.asked) };
+}
+
+function setTelemetry(enabled) {
+  const store = readStore();
+  store.telemetry = { enabled: Boolean(enabled), asked: true };
+  writeStore(store);
+  if (enabled) {
+    initSentry();
+  } else if (sentryActive) {
+    sentryActive = false;
+    try {
+      Sentry.close(0);
+    } catch {
+      // ignore
+    }
+  }
+  return { enabled: Boolean(enabled), asked: true };
+}
+
+process.on("uncaughtException", (error) => {
+  logError({ source: "main", type: "uncaughtException", message: error?.message || String(error), stack: error?.stack });
+});
+
+process.on("unhandledRejection", (reason) => {
+  logError({
+    source: "main",
+    type: "unhandledRejection",
+    message: reason?.message || String(reason),
+    stack: reason?.stack
+  });
+});
 const STORE_SCHEMA_VERSION = 3;
 const DEFAULT_MODELS = {
   codex: ["gpt-5.3-codex", "gpt-5.2", "gpt-5.4"],
@@ -342,6 +480,26 @@ function createAppMenu() {
           submenu: tabColorItems
         }
       ]
+    },
+    {
+      role: "help",
+      submenu: [
+        {
+          label: "Open Logs Folder",
+          click: () => shell.openPath(logPaths().dir)
+        },
+        {
+          label: "Reveal Log File",
+          click: () => shell.showItemInFolder(logPaths().file)
+        },
+        { type: "separator" },
+        {
+          label: "Send Anonymous Crash Reports",
+          type: "checkbox",
+          checked: telemetryState().enabled,
+          click: (item) => setTelemetry(item.checked)
+        }
+      ]
     }
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
@@ -500,6 +658,12 @@ function commandPath(command) {
 
 function shellQuote(value) {
   return `'${String(value).replace(/'/g, "'\\''")}'`;
+}
+
+// A command is "installed" when `command -v` resolves it to an absolute path.
+// commandPath returns the bare name unchanged when lookup fails.
+function hasCommand(command) {
+  return path.isAbsolute(commandPath(command));
 }
 
 function isTrustedSender(event) {
@@ -744,6 +908,33 @@ function sanitizeStore(store) {
 }
 
 handle("app:get-state", () => sanitizeStore(readStore()));
+
+handle("log:report", (_event, payload = {}) => {
+  const entry = {
+    source: "renderer",
+    type: typeof payload.type === "string" ? payload.type : "error",
+    message: typeof payload.message === "string" ? payload.message : "",
+    stack: typeof payload.stack === "string" ? payload.stack : "",
+    context: typeof payload.context === "string" ? payload.context : ""
+  };
+  logError(entry);
+  reportToSentry(entry);
+  return true;
+});
+
+handle("telemetry:get", () => telemetryState());
+
+handle("telemetry:set", (_event, enabled) => setTelemetry(enabled === true));
+
+handle("log:open", () => {
+  shell.showItemInFolder(logPaths().file);
+  return true;
+});
+
+handle("app:which-agents", () => ({
+  codex: hasCommand("codex"),
+  claude: hasCommand("claude")
+}));
 
 handle("clipboard:read-text", () => clipboard.readText());
 handle("clipboard:write-text", (_event, text) => {
@@ -1138,8 +1329,30 @@ handle("session:mark-provider-session-id", (_event, { sessionId, providerSession
   return sanitizeStore(store);
 });
 
+app.on("render-process-gone", (_event, _webContents, details = {}) => {
+  const entry = {
+    source: "renderer-process",
+    type: "render-process-gone",
+    message: `${details.reason || "unknown"} (exitCode ${details.exitCode})`
+  };
+  logError(entry);
+  reportToSentry(entry);
+});
+
+app.on("child-process-gone", (_event, details = {}) => {
+  const entry = {
+    source: "child-process",
+    type: "child-process-gone",
+    message: `${details.type || ""} ${details.name || ""} ${details.reason || "unknown"} (exitCode ${details.exitCode})`.trim()
+  };
+  logError(entry);
+  reportToSentry(entry);
+});
+
 app.whenReady().then(() => {
+  logSessionBanner();
   ensureStore();
+  if (telemetryState().enabled) initSentry();
   createAppMenu();
   createWindow();
 

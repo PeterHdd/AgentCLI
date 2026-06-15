@@ -114,6 +114,8 @@ let completionPrefix = "";
 let activeProcessMode = "shell";
 let sidebarSessions = [];
 let sidebarSessionErrors = [];
+let sidebarNotices = [];
+let agentClis = { codex: true, claude: true };
 let currentTheme = localStorage.getItem("agentcli.theme") || "terminal";
 if (!THEMES[currentTheme]) currentTheme = "terminal";
 let customTheme = JSON.parse(localStorage.getItem("agentcli.customTheme") || "null") || null;
@@ -149,6 +151,54 @@ let activeTabId = "";
 let restoringWorkspace = false;
 let term;
 let fit;
+
+// Surface failures instead of swallowing them: forward to the main process for
+// the log file, and show the user a dismissible toast. Registered early so it
+// catches startup errors too.
+function reportRendererError(type, message, stack, context) {
+  const text = String(message || "Something went wrong");
+  try {
+    window.agentcli?.reportError?.({ type, message: text, stack: stack || "", context: context || "" });
+  } catch {
+    // Bridge unavailable (very early failure); the toast still shows.
+  }
+  showErrorToast(text);
+}
+
+function showErrorToast(message) {
+  const stack = document.querySelector("#toast-stack");
+  if (!stack) return;
+  const toast = document.createElement("div");
+  toast.className = "toast";
+  toast.setAttribute("role", "alert");
+  toast.innerHTML = `<span class="toast-msg">${escapeHtml(message)}</span><button type="button" class="toast-logs">Logs</button><button type="button" class="toast-close" aria-label="Dismiss">&times;</button>`;
+  stack.append(toast);
+  const remove = () => toast.remove();
+  toast.querySelector(".toast-logs").addEventListener("click", () => {
+    try {
+      window.agentcli?.openLogs?.();
+    } catch {
+      // ignore
+    }
+  });
+  toast.querySelector(".toast-close").addEventListener("click", remove);
+  setTimeout(remove, 9000);
+}
+
+window.addEventListener("error", (event) => {
+  const error = event.error;
+  reportRendererError(
+    "error",
+    error?.message || event.message,
+    error?.stack,
+    event.filename ? `${event.filename}:${event.lineno}:${event.colno}` : ""
+  );
+});
+
+window.addEventListener("unhandledrejection", (event) => {
+  const reason = event.reason;
+  reportRendererError("unhandledrejection", reason?.message || String(reason), reason?.stack, "");
+});
 
 migrateLocalStorageNamespace();
 
@@ -583,6 +633,14 @@ async function refresh(nextState) {
   renderSessions();
 }
 
+function sidebarBanners() {
+  const notices = sidebarNotices.map((notice) => `<div class="session-notice">${escapeHtml(notice)}</div>`).join("");
+  const errors = sidebarSessionErrors.length
+    ? `<div class="session-warning">${escapeHtml(sidebarSessionErrors.join(" "))}</div>`
+    : "";
+  return notices + errors;
+}
+
 function renderSessions() {
   const filteredSessions = filterSessions(sidebarSessions);
   const orderedSessions = sortSessionsForDisplay(filteredSessions);
@@ -594,17 +652,16 @@ function renderSessions() {
   if (!orderedSessions.length) {
     visibleSidebarSessions = [];
     selectedSessionKey = "";
-    const errorText = sidebarSessionErrors.length ? ` ${sidebarSessionErrors.join(" ")}` : "";
-    sessionListEl.innerHTML = `<div class="empty">No sessions found.${escapeHtml(errorText)}</div>`;
+    const empty = sidebarNotices.length
+      ? ""
+      : `<div class="empty">No sessions found.${sidebarSessionErrors.length ? ` ${escapeHtml(sidebarSessionErrors.join(" "))}` : ""}</div>`;
+    sessionListEl.innerHTML = sidebarBanners() + empty;
     renderSessionPreview();
     return;
   }
 
   let sessionIndex = 0;
-  const errorBanner = sidebarSessionErrors.length
-    ? `<div class="session-warning">${escapeHtml(sidebarSessionErrors.join(" "))}</div>`
-    : "";
-  sessionListEl.innerHTML = errorBanner + groupSessionsByWorkspace(orderedSessions)
+  sessionListEl.innerHTML = sidebarBanners() + groupSessionsByWorkspace(orderedSessions)
     .map(({ workspace, sessions }) => {
       const cards = sessions
         .map((session) => {
@@ -823,7 +880,8 @@ function groupSessionsByWorkspace(sessions) {
 }
 
 async function refreshProviderSessions() {
-  sessionListEl.innerHTML = `<div class="empty">Loading sessions...</div>`;
+  sessionListEl.innerHTML = `<div class="empty">Loading sessions…</div>`;
+  await refreshAgentClis();
   const [codexResult, claudeResult] = await Promise.allSettled([
     window.agentcli.listCodexThreads({ limit: 50 }),
     window.agentcli.listClaudeSessions({ limit: 50 })
@@ -831,21 +889,36 @@ async function refreshProviderSessions() {
 
   sidebarSessions = [];
   sidebarSessionErrors = [];
+  sidebarNotices = [];
 
-  if (codexResult.status === "fulfilled") {
-    sidebarSessions.push(...codexResult.value.map((thread) => ({ ...thread, provider: "codex" })));
-  } else {
+  if (!agentClis.codex) {
+    sidebarNotices.push("Codex CLI not found on your PATH. Install the `codex` command to start or resume Codex sessions.");
+  } else if (codexResult.status === "rejected") {
     sidebarSessionErrors.push(`Codex unavailable: ${codexResult.reason?.message || codexResult.reason}`);
   }
+  if (codexResult.status === "fulfilled") {
+    sidebarSessions.push(...codexResult.value.map((thread) => ({ ...thread, provider: "codex" })));
+  }
 
+  if (!agentClis.claude) {
+    sidebarNotices.push("Claude Code CLI not found on your PATH. Install the `claude` command to start or resume Claude sessions.");
+  } else if (claudeResult.status === "rejected") {
+    sidebarSessionErrors.push(`Claude unavailable: ${claudeResult.reason?.message || claudeResult.reason}`);
+  }
   if (claudeResult.status === "fulfilled") {
     sidebarSessions.push(...claudeResult.value.map((session) => ({ ...session, provider: "claude" })));
-  } else {
-    sidebarSessionErrors.push(`Claude unavailable: ${claudeResult.reason?.message || claudeResult.reason}`);
   }
 
   sidebarSessions.sort((a, b) => normalizedTimestamp(b.updatedAt) - normalizedTimestamp(a.updatedAt));
   renderSessions();
+}
+
+async function refreshAgentClis() {
+  try {
+    agentClis = await window.agentcli.whichAgents();
+  } catch {
+    // Keep the last known value if the check fails.
+  }
 }
 
 async function ensureSidebarSessionsLoaded() {
@@ -2603,4 +2676,23 @@ refresh().then(async () => {
   await restoreWorkspaceLayout();
   applyTerminalFont();
   keyboardCaptureEl.focus();
+  await maybeAskTelemetryConsent();
 });
+
+async function maybeAskTelemetryConsent() {
+  try {
+    const telemetry = await window.agentcli.getTelemetry();
+    if (telemetry.asked) return;
+    const consent = await confirmDialog({
+      title: "Help improve AgentCLI?",
+      message:
+        "Send anonymous crash reports when something breaks?\n\n" +
+        "Only the error type, stack trace, and app version are sent — never your terminal contents, prompts, file contents, or username. You can change this anytime under the Help menu.",
+      confirmText: "Share crash reports",
+      cancelText: "No thanks"
+    });
+    await window.agentcli.setTelemetry(consent === true);
+  } catch {
+    // Consent is best-effort; default stays opt-out.
+  }
+}
