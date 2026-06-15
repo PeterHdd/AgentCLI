@@ -36,6 +36,8 @@ jobs:
         run: npm run ci
 
       - name: Build DMG
+        env:
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: npm run dist:dmg:${{ matrix.arch }}
 
       - name: Upload DMG artifact
