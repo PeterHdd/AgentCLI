@@ -2,6 +2,13 @@
 
 All notable changes to AgentCLI will be documented in this file.
 
+## [0.0.4](https://github.com/PeterHdd/AgentCLI/compare/AgentCLI-v0.0.3...AgentCLI-v0.0.4) (2026-06-15)
+
+
+### Features
+
+* add error surfacing, crash reporting, and CLI onboarding ([68b17e8](https://github.com/PeterHdd/AgentCLI/commit/68b17e846e73c438e9327fe868633d051e9e9b1d))
+
 ## [0.0.3](https://github.com/PeterHdd/AgentCLI/compare/AgentCLI-v0.0.2...AgentCLI-v0.0.3) (2026-06-13)
 
 
