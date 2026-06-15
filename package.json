@@ -1,7 +1,7 @@
 {
   "name": "agentcli",
   "productName": "AgentCLI",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "private": true,
   "description": "Desktop terminal workbench for resumable agent coding sessions.",
   "license": "MIT",
