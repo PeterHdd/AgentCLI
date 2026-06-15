@@ -1,159 +1,101 @@
 # AgentCLI
 
-AgentCLI is an Electron terminal built around agent work. It is a terminal first, with optional session navigation for Codex and Claude Code.
+> ⚠️ **Alpha.** AgentCLI is early and evolving — expect rough edges, breaking changes, and unsigned builds. Feedback and [issues](https://github.com/PeterHdd/AgentCLI/issues) are very welcome.
+
+A desktop, **terminal-first** workbench for resumable agent coding sessions. It's a real terminal (xterm.js + node-pty) with a collapsible sidebar to browse and resume your **Codex** and **Claude Code** sessions in tabs.
 
 ## Features
 
-- Real PTY terminal powered by xterm.js and node-pty.
-- Login shell startup so zsh/profile configuration can load normally.
-- Codex and Claude Code sessions in a collapsible sidebar.
-- Resume previous Codex/Claude sessions into separate tabs.
-- Scratchpad for drafting prompts before sending them to a terminal.
-- Handoff a tab to another agent.
-- Local voice prompt transcription on macOS.
-- Theme editor with HSB sliders for terminal/app colors.
-- Terminal font import for `.ttf`, `.otf`, `.woff`, and `.woff2`.
-- Nerd Font fallback for zsh/starship/powerlevel prompt icons.
-- Native app menus and shortcuts for common actions.
-- Custom app icon assets in SVG, PNG, iconset, and macOS ICNS formats.
+- **Real PTY terminal** — xterm.js + node-pty, launched as a login shell so your zsh/profile loads normally.
+- **Session sidebar** — browse Codex/Claude sessions grouped by workspace; click to preview, double-click (or Enter) to resume into a tab.
+- **Tabs** — multiple terminals/agents side by side, restored on relaunch.
+- **Command palette** (`⌘K`) — every action in one searchable place.
+- **Scratchpad** (`⌘E`) — draft prompts before sending; pair mode sends to both agents at once.
+- **Handoff** — pass the current tab's work to the other agent.
+- **Git worktrees** — create/open worktrees and start a shell or agent in them.
+- **Voice prompts** — local, on-device transcription (macOS Speech).
+- **Themes & fonts** — built-in themes (via the palette) plus an HSB color editor; import your own terminal font.
+- **Crash reporting (opt-in)** — local error logs always; anonymous, scrubbed crash reports only if you opt in.
 
 ## Requirements
 
-- macOS for the current voice transcription helper.
-- Node.js 24.
-- Codex CLI and/or Claude Code installed if you want agent sessions.
+- **macOS** (Apple Silicon or Intel).
+- **Codex CLI** and/or **Claude Code** on your `PATH` for agent sessions (the app tells you if one is missing).
+- Node.js 24 — only needed to build/develop from source.
+
+## Install
+
+1. Download the latest `.dmg` for your chip (`arm64` = Apple Silicon, `x64` = Intel) from the [Releases page](https://github.com/PeterHdd/AgentCLI/releases).
+2. Open the DMG and drag **AgentCLI** into Applications.
+
+### ⚠️ First launch (unsigned build)
+
+Alpha builds are **not signed or notarized**, so macOS Gatekeeper blocks the first open with *"AgentCLI can't be opened because Apple cannot check it for malicious software."* To get past it (only needed once):
+
+- **Right-click** AgentCLI in Applications → **Open** → **Open** in the dialog, **or**
+- if macOS reports the app is *"damaged"*, clear the quarantine attribute:
+  ```bash
+  xattr -dr com.apple.quarantine /Applications/AgentCLI.app
+  ```
+
+Only do this for builds you trust. A signed/notarized build is planned.
+
+## Usage
+
+| Shortcut | Action |
+| --- | --- |
+| `⌘K` | Command palette |
+| `⌘B` | Toggle sessions sidebar |
+| `⌘T` / `⌘W` | New tab / close tab |
+| `⌘E` | Toggle scratchpad |
+| `⌘⇧F` | Search sessions |
+| `⌘⇧↵` | Send scratchpad to active tab |
+| `⌘⇧P` | Pair mode (Codex + Claude) |
+| `⌘⌥C` / `⌘⌥L` | Open latest Codex / Claude |
+| `⌘⇧Space` | Voice prompt |
+| `⌘⌥T` | Theme editor |
+| `⌘⌥F` | Import terminal font |
+
+Type `claude` or `codex` in a tab to start an interactive session. Switch themes with `/theme <name>` or via the palette. Your logs live under **Help → Open Logs Folder**.
+
+## Privacy & telemetry
+
+AgentCLI runs locally and talks only to the agent CLIs you invoke.
+
+- **Local logs** (always on): errors and crashes are written to `~/Library/Application Support/AgentCLI/logs/` so you can attach them to a bug report (**Help → Reveal Log File**).
+- **Crash reports** (off by default, opt-in): if you enable them — via the first-run prompt or **Help → Send Anonymous Crash Reports** — AgentCLI sends the error type, stack trace, and app version to Sentry. It **never** sends your terminal contents, prompts, file contents, or username (paths are scrubbed). You can toggle it anytime.
 
 ## Development
 
-Install dependencies:
-
 ```bash
 npm install
+npm start          # branded dev app (window/menu show "AgentCLI")
+npm run start:raw  # plain `electron .` (faster, shows "Electron")
+npm run ci         # syntax check + static security checks + tests
 ```
 
-Start the Electron app:
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow and project layout.
+
+### Build a DMG
 
 ```bash
-npm run start
+npm run dist:dmg       # Apple Silicon (default)
+npm run dist:dmg:x64   # Intel
+npm run dist:dmg:all   # both
 ```
 
-Run syntax checks:
-
-```bash
-npm run check
-```
-
-Run tests:
-
-```bash
-npm test
-```
-
-Run the same command as CI:
-
-```bash
-npm run ci
-```
-
-Run only the static security checks:
-
-```bash
-npm run security:check
-```
-
-## Build a DMG
-
-Create an unsigned local DMG for the current default release architecture, Apple Silicon:
-
-```bash
-npm run dist:dmg
-```
-
-The output is written to `release/`.
-
-Create architecture-specific DMGs:
-
-```bash
-npm run dist:dmg:arm64
-npm run dist:dmg:x64
-```
-
-Create both macOS DMGs:
-
-```bash
-npm run dist:dmg:all
-```
-
-Create only the packaged `.app` directory for testing:
-
-```bash
-npm run dist:dir
-```
-
-Public macOS distribution should use an Apple Developer ID certificate and notarization. The unsigned DMG is useful for local testing, but users will see Gatekeeper warnings if you distribute it publicly.
+Output is written to `release/`. Builds are unsigned unless you provide an Apple Developer ID.
 
 ## Security
 
-AgentCLI is a terminal, so commands typed by the user intentionally execute with the user's local shell permissions. The app hardens the Electron boundary around that surface:
+AgentCLI is a terminal, so commands you (or agents) run execute with your local shell permissions. The Electron boundary around that is hardened: renderer sandboxing, `contextIsolation`, no `nodeIntegration`, a narrow `window.agentcli` preload bridge, trusted-sender IPC validation, blocked navigation/new windows, a strict Content Security Policy, audio-only media permission, and static security checks in `npm run ci` (plus `npm audit` in CI).
 
-- Renderer sandboxing, `contextIsolation`, and disabled `nodeIntegration`.
-- A narrow preload bridge exposed as `window.agentcli`.
-- Trusted-sender validation on IPC handlers.
-- Blocked renderer navigation and new windows.
-- Content Security Policy for the local renderer.
-- Audio-only media permission for voice prompts.
-- Bounded voice upload size before local transcription.
-- Static security checks in `npm run ci`.
+Found a vulnerability? Please see [SECURITY.md](SECURITY.md).
 
-GitHub CI also runs `npm audit --omit=dev` for production dependency vulnerabilities.
+## Releases
 
-## Release
-
-AgentCLI uses release-please for version bumps, changelog updates, tags, and GitHub Releases. Use conventional commit messages so release-please can categorize changes:
-
-```bash
-feat: add session timeline
-fix: preserve Codex TUI colors
-docs: document unsigned macOS install
-```
-
-Normal release flow:
-
-1. Merge feature/fix commits to `main`.
-2. The Release Please workflow opens or updates a release PR.
-3. Merge the release PR.
-4. Release Please creates the tag and GitHub Release.
-5. The release workflow builds Apple Silicon and Intel DMGs, then uploads them to that GitHub Release.
-
-For a manual unsigned alpha tag, you can still run:
-
-```bash
-git tag v0.0.1-alpha.1
-git push origin main --tags
-```
-
-The GitHub release workflow builds Apple Silicon and Intel DMGs, then attaches them to a GitHub Release for the tag.
-
-## Shortcuts
-
-- `Cmd+T`: new AgentCLI tab
-- `Cmd+W`: close current tab
-- `Cmd+K`: command palette
-- `Cmd+B`: toggle sessions
-- `Cmd+Shift+F`: search sessions
-- `Cmd+E`: toggle scratchpad
-- `Cmd+Shift+Enter`: send scratchpad to active tab
-- `Cmd+Shift+P`: pair mode
-- `Cmd+Shift+Space`: voice prompt
-- `Cmd+Alt+T`: theme editor
-- `Cmd+Alt+F`: import terminal font
-
-## Notes
-
-AgentCLI strips `NO_COLOR` from spawned PTYs and advertises truecolor support so agent TUIs such as Codex can render their own colors and prompt backgrounds.
-
-If prompt icons render as empty boxes, install or import a Nerd Font such as MesloLGS NF, JetBrainsMono Nerd Font, or Hack Nerd Font.
+Releases are automated with [release-please](https://github.com/googleapis/release-please) driven by Conventional Commits. Merging the generated release PR tags a GitHub Release and builds + attaches the arm64/x64 DMGs automatically. Details in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-MIT
+[MIT](LICENSE)
