@@ -32,4 +32,6 @@ jobs:
         run: npm run ci
 
       - name: Audit production dependencies
-        run: npm audit --omit=dev
+        # Fail only on high/critical. Moderate transitive advisories (e.g. Sentry's
+        # OpenTelemetry deps) otherwise block unrelated PRs; review those manually.
+        run: npm audit --omit=dev --audit-level=high
