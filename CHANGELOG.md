@@ -2,6 +2,16 @@
 
 All notable changes to AgentCLI will be documented in this file.
 
+## [0.0.5](https://github.com/PeterHdd/AgentCLI/compare/AgentCLI-v0.0.4...AgentCLI-v0.0.5) (2026-06-16)
+
+
+### Documentation
+
+* add community health files and refresh README for alpha ([9cbe7b2](https://github.com/PeterHdd/AgentCLI/commit/9cbe7b278e3c670c04fcc7d75d9b48e97dce5d80))
+* add community health files and refresh README for alpha ([a7deed3](https://github.com/PeterHdd/AgentCLI/commit/a7deed34a130c3df55a89c94c749d72a9dd5635e))
+* add screenshots to the README ([42c0627](https://github.com/PeterHdd/AgentCLI/commit/42c0627c3fbc7bf06b726218a293535ca83637e2))
+* add screenshots to the README ([8323481](https://github.com/PeterHdd/AgentCLI/commit/832348110c4939f436641768974d4857a916c1b7))
+
 ## [0.0.4](https://github.com/PeterHdd/AgentCLI/compare/AgentCLI-v0.0.3...AgentCLI-v0.0.4) (2026-06-15)
 
 
