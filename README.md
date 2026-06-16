@@ -4,6 +4,10 @@
 
 A desktop, **terminal-first** workbench for resumable agent coding sessions. It's a real terminal (xterm.js + node-pty) with a collapsible sidebar to browse and resume your **Codex** and **Claude Code** sessions in tabs.
 
+![AgentCLI — browse and resume Codex and Claude sessions in a tabbed terminal](assets/screenshot-sessions.png)
+
+> Screenshots use placeholder sessions.
+
 ## Features
 
 - **Real PTY terminal** — xterm.js + node-pty, launched as a login shell so your zsh/profile loads normally.
@@ -57,6 +61,10 @@ Only do this for builds you trust. A signed/notarized build is planned.
 | `⌘⌥F` | Import terminal font |
 
 Type `claude` or `codex` in a tab to start an interactive session. Switch themes with `/theme <name>` or via the palette. Your logs live under **Help → Open Logs Folder**.
+
+| Command palette (`⌘K`) | Theme editor |
+| --- | --- |
+| ![Command palette](assets/screenshot-palette.png) | ![Theme editor](assets/screenshot-theme.png) |
 
 ## Privacy & telemetry
 
