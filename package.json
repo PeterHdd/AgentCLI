@@ -87,7 +87,7 @@
     "@xterm/xterm": "^5.5.0"
   },
   "devDependencies": {
-    "electron": "^42.4.0",
+    "electron": "^42.4.1",
     "electron-builder": "^26.15.3"
   }
 }
